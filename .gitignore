@@ -1,0 +1,5 @@
+bin
+obj
+proof_*.html
+*.swo
+*.swp
