@@ -5,10 +5,10 @@ using System.Text.Json;
 namespace ConstataGraphQl.UnitTests {
   public class ApiClient_DemoWorkflows {
     // This is your constata encrypted_key, found in signature.json
-    // This is the development encrypted key.
-    static string encrypted_key = "e002ccd7fe2357f72e700dbe07d127304400000000000000b4c9b15aa8d32e22e579fedf254cc5429d925c9eac20698faea5b937abcb66a46489285b646e69ebfb425f6799e9ea2441f51be393c53012591ee8596c1e215747feb838";
+    static string encrypted_key = "...";
 
-    // Password should live only in this process memory. Can be sourced from stdin when the process starts, from a keyring, using systemd-ask-password in linux.
+    // Password should live only in this process memory.
+    // Can be sourced from stdin when the process starts, from a keyring, using systemd-ask-password in linux.
     static string password = "password";
 
     static string environment = "staging"; // "development"; // "production";
@@ -121,6 +121,13 @@ namespace ConstataGraphQl.UnitTests {
           parsed.Resource["AttestationDone"]!["id"]!.GetValue<int>(),
           parsed.Resource["AttestationDone"]!["admin_access_url"]!.GetValue<string>()
         );
+
+        if(webCallback.State == "PENDING") {
+          var attempts = await client.allWebCallbackAttempts(webCallback.Id);
+          foreach (WebCallbackAttempt attempt in attempts) {
+            Console.WriteLine("  Attempt {0}: {1} {2}", attempt.AttemptedAt, attempt.ResultCode, attempt.ResultText);
+          }
+        }
       }
     }
   }

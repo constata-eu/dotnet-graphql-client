@@ -148,12 +148,12 @@ namespace ConstataGraphQL {
       return dataOrThrow(response).allWebCallbacks;
     }
 
-    public async Task<List<WebCallbackAttempt>?> allWebCallbackAttempts(int webCallbackId, int page) {
+    public async Task<List<WebCallbackAttempt>?> allWebCallbackAttempts(int webCallbackId) {
       var response = await this.Query<WebCallbackAttemptsResponse>(
         "allWebCallbackAttempts",
         @"
-        query allWebCallbackAttempts($page: Int, $filter: WebCallbackAttemptFilter) {
-          allWebCallbackAttempts(page: $page, perPage: 200, sortField: ""attemptedAt"", sortOrder: ""desc"", filter: $filter) {
+        query allWebCallbackAttempts($filter: WebCallbackAttemptFilter) {
+          allWebCallbackAttempts(page: 0, perPage: 200, sortField: ""attemptedAt"", sortOrder: ""desc"", filter: $filter) {
             id
             webCallbackId
             attemptedAt
@@ -163,9 +163,8 @@ namespace ConstataGraphQL {
           }
         }",
         new {
-          page = page,
           filter = new {
-            webCallbackId = webCallbackId
+            webCallbackIdEq = webCallbackId
           }
         }
       );
@@ -385,7 +384,6 @@ namespace ConstataGraphQL {
       var recovered_pubkey = new RNB.PubKey(recovered_hex);
       var recovered_address = recovered_pubkey.GetAddress(RNB.ScriptPubKeyType.Segwit, constata_addr_network).ToString();
 
-      Console.WriteLine("recovered: {0}", recovered_address);
       if (recovered_address != constata_addr) {
         throw new Exception("Unexpected web callback not signed by constata");
       }
