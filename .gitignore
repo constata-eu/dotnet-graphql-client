@@ -1,5 +1,6 @@
 bin
 obj
 proof_*.html
+test_keys
 *.swo
 *.swp

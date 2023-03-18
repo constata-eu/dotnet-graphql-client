@@ -12,6 +12,9 @@
     <PackageReference Include="GraphQL.Client" Version="5.1.1" />
     <PackageReference Include="GraphQL.Client.Serializer.Newtonsoft" Version="5.1.1" />
     <PackageReference Include="Miscreant" Version="0.3.3" />
+    <PackageReference Include="NBitcoin" Version="7.0.25">
+    	<Aliases>RealNBitcoin</Aliases>
+    </PackageReference>
   </ItemGroup>
 
 </Project>

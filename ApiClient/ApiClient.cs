@@ -1,8 +1,11 @@
-﻿using System;
+﻿extern alias RealNBitcoin;
+
+using System;
 using System.Linq;
 using System.Net.Http.Headers;
-using System.Text.Json;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using GraphQL;
 using GraphQL.Client.Http;
@@ -13,6 +16,7 @@ using Miscreant;
 using NBitcoin;
 using Blockcore.Networks;
 using Blockcore.Networks.Bitcoin;
+using RNB = RealNBitcoin::NBitcoin;
 
 namespace ConstataGraphQL {
   public class ApiClient {
@@ -22,13 +26,15 @@ namespace ConstataGraphQL {
     // The ApiClient is the main entry point to our API.
     // It performs authenticated GraphQL requests.
     // It supports any graphql query but has convenience functions and types for most common use cases.
-    public ApiClient(string encryptedKeyText, string password, bool testing = false) {
-      this.Client = new GraphQLHttpClient(
-        testing ? "http://127.0.0.1:8000/graphql" : "https://api.constata.eu/graphql",
-        new NewtonsoftJsonSerializer()
-      );
-      var network = testing ?  Networks.Bitcoin.Regtest() : Networks.Bitcoin.Mainnet();
-      this.Signer = new Signer(encryptedKeyText, password, network);
+    public ApiClient(string encryptedKeyText, string password, string env = "production") {
+      (string url, Network signing_network) = env switch {
+        "development" => ("http://127.0.0.1:8000/graphql", Networks.Bitcoin.Regtest()),
+        "staging" => ("https://api-staging.constata.eu/graphql", Networks.Bitcoin.Mainnet()),
+        "production" => ("https://api.constata.eu/graphql", Networks.Bitcoin.Mainnet()),
+      };
+
+      this.Client = new GraphQLHttpClient(url, new NewtonsoftJsonSerializer());
+      this.Signer = new Signer(encryptedKeyText, password, signing_network);
     }
 
     public async Task<GraphQL.GraphQLResponse<T>> Query<T>(string operationName, string query, object variables) {
@@ -101,6 +107,70 @@ namespace ConstataGraphQL {
       );
 
       return dataOrThrow(response).AttestationHtmlExport;
+    }
+
+    public async Task<String> updateWebCallbacksUrl(string url) {
+      var response = await this.Query<UpdateWebCallbacksUrlResponse>(
+        "updateWebCallbacksUrl",
+        @"
+        mutation updateWebCallbacksUrl($url: String) {
+          updateWebCallbacksUrl(url: $url) {
+            id
+            webCallbacksUrl
+            __typename
+          }
+        }",
+        new { url = url }
+      );
+
+      return dataOrThrow(response).updateWebCallbacksUrl.WebCallbacksUrl;
+    }
+
+    public async Task<List<WebCallback>?> allWebCallbacks(int page) {
+      var response = await this.Query<WebCallbacksResponse>(
+        "allWebCallbacks",
+        @"
+        query allWebCallbacks($page: Int) {
+          allWebCallbacks(page: $page, perPage: 200, sortField: ""createdAt"", sortOrder: ""desc"") {
+            id
+            kind
+            resourceId
+            state
+            lastAttemptId
+            createdAt
+            nextAttemptOn
+            requestBody
+          }
+        }",
+        new { page = page }
+      );
+
+      return dataOrThrow(response).allWebCallbacks;
+    }
+
+    public async Task<List<WebCallbackAttempt>?> allWebCallbackAttempts(int webCallbackId, int page) {
+      var response = await this.Query<WebCallbackAttemptsResponse>(
+        "allWebCallbackAttempts",
+        @"
+        query allWebCallbackAttempts($page: Int, $filter: WebCallbackAttemptFilter) {
+          allWebCallbackAttempts(page: $page, perPage: 200, sortField: ""attemptedAt"", sortOrder: ""desc"", filter: $filter) {
+            id
+            webCallbackId
+            attemptedAt
+            url
+            resultCode
+            resultText
+          }
+        }",
+        new {
+          page = page,
+          filter = new {
+            webCallbackId = webCallbackId
+          }
+        }
+      );
+
+      return dataOrThrow(response).allWebCallbackAttempts;
     }
 
     private T dataOrThrow<T>(GraphQLResponse<T> response) {
@@ -181,6 +251,43 @@ namespace ConstataGraphQL {
     public DateTime? CreatedAt { get; set; }
   }
 
+  public class UpdateWebCallbacksUrlResponse {
+    public AccountStateContent? updateWebCallbacksUrl { get; set; }
+
+    public class AccountStateContent {
+      public int Id { get; set; }
+      public string WebCallbacksUrl { get; set; }
+    }
+  }
+
+  class WebCallbacksResponse {
+    public List<WebCallback>? allWebCallbacks { get; set; }
+  }
+
+  public class WebCallback {
+    public int Id { get; set; }
+    public string Kind { get; set; }
+    public int ResourceId { get; set; }
+    public string State { get; set; }
+    public int? LastAttemptId { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime NextAttemptOn { get; set; }
+    public string RequestBody { get; set; }
+  }
+
+  class WebCallbackAttemptsResponse {
+    public List<WebCallbackAttempt>? allWebCallbackAttempts { get; set; }
+  }
+
+  public class WebCallbackAttempt {
+    public int Id { get; set; }
+    public int WebCallbackId { get; set; }
+    public DateTime AttemptedAt{ get; set; }
+    public string Url { get; set; }
+    public string ResultCode { get; set; }
+    public string ResultText { get; set; }
+  }
+
   // The Signer decodes an encryptedKey with a password, and can then use it to 'Sign' byte payloads, like headers or new documents.
   public class Signer {
     private readonly Key Key;
@@ -212,17 +319,17 @@ namespace ConstataGraphQL {
     public SignedPayload Sign(byte[] bytes) {
       return new SignedPayload(System.Convert.ToBase64String(bytes), this.Address, this.Key.SignMessage(bytes));
     }
+  }
 
-    public readonly struct SignedPayload {
-      public SignedPayload(string payload, string signer, string signature) {
-        this.payload = payload;
-        this.signer = signer;
-        this.signature = signature;
-      }
-      public string payload { get; init; }
-      public string signer { get; init; }
-      public string signature { get; init; }
+  public readonly struct SignedPayload {
+    public SignedPayload(string payload, string signer, string signature) {
+      this.payload = payload;
+      this.signer = signer;
+      this.signature = signature;
     }
+    public string payload { get; init; }
+    public string signer { get; init; }
+    public string signature { get; init; }
   }
 
   // This custom Request builds an authentication header with signed metadata about the request itself.
@@ -256,6 +363,36 @@ namespace ConstataGraphQL {
 
     private string HexDigest(string str) {
       return Convert.ToHexString(SHA256.Create().ComputeHash(Encoding.UTF8.GetBytes(str)));
+    }
+  }
+
+  // The ParsedWebCallback validates a callback's signature and extracts the inner attributes you can use.
+  public class ParsedWebCallback : GraphQLHttpRequest {
+    public string Kind { get; init; }
+    public JsonNode Resource { get; init; }
+
+    public ParsedWebCallback(string rawBody, string env = "production") {
+      (string constata_addr, RNB.Network constata_addr_network) = env switch {
+        "development" => ("bcrt1qsj2h8ernt4amc674l60vu925flvn57ff9lyry2", RNB.Network.RegTest),
+        "staging" => ("tb1qurghvhp8g6he5hsv0en6n59rextfw8kw0wxyun", RNB.Network.TestNet),
+        "production" => ("bc1qw3ca5pgepg6hqqle2eq8qakejl5wdafs7up0jd", RNB.Network.Main)
+      };
+
+      SignedPayload signed = JsonSerializer.Deserialize<SignedPayload>(rawBody);
+
+      byte[] payload = System.Convert.FromBase64String(signed.payload);
+      var recovered_hex = PubKey.RecoverFromMessage(payload, signed.signature).ToHex();
+      var recovered_pubkey = new RNB.PubKey(recovered_hex);
+      var recovered_address = recovered_pubkey.GetAddress(RNB.ScriptPubKeyType.Segwit, constata_addr_network).ToString();
+
+      Console.WriteLine("recovered: {0}", recovered_address);
+      if (recovered_address != constata_addr) {
+        throw new Exception("Unexpected web callback not signed by constata");
+      }
+
+      JsonNode json = JsonNode.Parse(Encoding.UTF8.GetString(payload));
+      this.Kind = json["kind"]!.GetValue<string>();
+      this.Resource = json["resource"];
     }
   }
 }
