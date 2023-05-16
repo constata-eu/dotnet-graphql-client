@@ -109,6 +109,26 @@ namespace ConstataGraphQL {
       return dataOrThrow(response).AttestationHtmlExport;
     }
 
+    public async Task<Attestation> attestationSetPublished(int attestationId, bool publish) {
+      var input = new {
+        attestationId = attestationId,
+        publish = publish,
+      };
+      
+      var response = await this.Query<AttestationSetPublishedResponse>(
+        "attestationSetPublished",
+        $@"
+        mutation attestationSetPublished($input: AttestationSetPublishedInput!) {{
+          attestationSetPublished(input: $input) {{
+            {ATTESTATION_FIELDS}
+          }}
+        }}",
+        new { input = input }
+      );
+
+      return dataOrThrow(response).attestationSetPublished;
+    }
+
     public async Task<String> updateWebCallbacksUrl(string url) {
       var response = await this.Query<UpdateWebCallbacksUrlResponse>(
         "updateWebCallbacksUrl",
@@ -202,6 +222,7 @@ namespace ConstataGraphQL {
       lastDocDate
       emailAdminAccessUrlTo
       adminAccessUrl
+      publicCertificateUrl
       createdAt
       __typename
     ";
@@ -228,6 +249,10 @@ namespace ConstataGraphQL {
     public string VerifiableHtml { get; set; }
   }
 
+  class AttestationSetPublishedResponse {
+    public Attestation? attestationSetPublished { get; set; }
+  }
+
   public class Attestation {
     public int Id { get; set; }
     public int PersonId { get; set; }
@@ -247,6 +272,7 @@ namespace ConstataGraphQL {
     public DateTime? LastDocDate { get; set; }
     public List<string>? EmailAdminAccessUrlTo { get; set; }
     public string? AdminAccessUrl { get; set; }
+    public string? PublicCertificateUrl { get; set; }
     public DateTime? CreatedAt { get; set; }
   }
 

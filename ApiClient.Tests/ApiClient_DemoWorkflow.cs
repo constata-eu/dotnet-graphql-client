@@ -86,6 +86,13 @@ namespace ConstataGraphQl.UnitTests {
 
         Console.WriteLine("Attestation {0} is done. Visit {1} to view, share and download.", attestation.Id, attestation.AdminAccessUrl);
 
+        var published = await client.attestationSetPublished(attestation.Id, true);
+        Console.WriteLine("Also published for everyone to see at {0}", published.PublicCertificateUrl);
+
+        // We can unpublish it like this.
+        //published = await client.attestationSetPublished(published.Id, false);
+        //Assert.Equal(null, published.PublicCertificateUrl);
+
         /*
         Console.WriteLine("Also writing HTML proof to proof_{0}.html, you can open it in your browser.", attestation.Id);
         var export = await client.AttestationHtmlExport(1);
